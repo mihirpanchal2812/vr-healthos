@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 from dotenv import load_dotenv
+import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -52,16 +53,29 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'healthos.wsgi.application'
 
+
+#-----------------------------------------------------------------------------------
+# PRODUCTION DATABASE CONFIGURATION (UNCOMMENT FOR PRODUCTION DEPLOYMENT)
+#-----------------------------------------------------------------------------------
+
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ['DATABASE_URL'].split('/')[-1],
-        'USER': os.environ['DATABASE_URL'].split('://')[1].split(':')[0],
-        'PASSWORD': os.environ['DATABASE_URL'].split(':')[2].split('@')[0],
-        'HOST': os.environ['DATABASE_URL'].split('@')[1].split(':')[0],
-        'PORT': os.environ['DATABASE_URL'].split(':')[-1].split('/')[0],
-    }
+    'default': dj_database_url.config(env='ON_DATABASE_URL', conn_max_age=600)
 }
+
+#-----------------------------------------------------------------------------------
+# LOCAL DATABASE CONFIGURATION (UNCOMMENT FOR LOCAL DEVELOPMENT)
+#-----------------------------------------------------------------------------------
+
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': os.environ['DATABASE_URL'].split('/')[-1],
+#         'USER': os.environ['DATABASE_URL'].split('://')[1].split(':')[0],
+#         'PASSWORD': os.environ['DATABASE_URL'].split(':')[2].split('@')[0],
+#         'HOST': os.environ['DATABASE_URL'].split('@')[1].split(':')[0],
+#         'PORT': os.environ['DATABASE_URL'].split(':')[-1].split('/')[0],
+#     }
+# }
 
 AUTH_USER_MODEL = 'core.User'
 
