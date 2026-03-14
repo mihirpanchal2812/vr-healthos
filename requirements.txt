@@ -1,11 +1,13 @@
 asgiref==3.11.1
 charset-normalizer==3.4.5
+dj-database-url==3.1.2
 Django==5.2.12
 dotenv==0.9.9
 gunicorn==25.1.0
 packaging==26.0
 pillow==12.1.1
 psycopg==3.3.3
+psycopg2-binary==2.9.11
 python-dotenv==1.2.2
 reportlab==4.4.10
 sqlparse==0.5.5
