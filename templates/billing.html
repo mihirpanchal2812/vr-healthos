@@ -1,0 +1,251 @@
+{% extends 'base.html' %}
+{% block title %}Billing & Invoices — VR HealthOS{% endblock %}
+{% block page_title %}Billing & Invoices{% endblock %}
+
+{% block content %}
+{% if request.user.role == 'admin' %}
+<div class="revenue-cards">
+    <div class="revenue-card">
+        <div class="label">Total Revenue</div>
+        <div class="amount">₹{{ total_revenue }}</div>
+    </div>
+    <div class="revenue-card">
+        <div class="label">Collected</div>
+        <div class="amount green">₹{{ collected }}</div>
+    </div>
+    <div class="revenue-card">
+        <div class="label">Pending</div>
+        <div class="amount red">₹{{ pending }}</div>
+    </div>
+</div>
+{% endif %}
+
+<div class="filter-bar">
+    <form method="get" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <select name="filter" class="form-select" style="width:auto" onchange="toggleFilterInputs(this.value)">
+            <option value="all" {% if filter_type == 'all' %}selected{% endif %}>All Invoices</option>
+            <option value="today" {% if filter_type == 'today' %}selected{% endif %}>Today</option>
+            <option value="date" {% if filter_type == 'date' %}selected{% endif %}>By Date</option>
+            <option value="patient" {% if filter_type == 'patient' %}selected{% endif %}>By Patient</option>
+        </select>
+        <span id="dateFilter" style="{% if filter_type != 'date' %}display:none{% endif %}">
+            <label style="font-size:13px;color:var(--text-muted)">Date:</label>
+            <input type="date" name="date" class="form-input" style="width:auto" value="{{ filter_date }}">
+        </span>
+        <span id="patientFilter" style="{% if filter_type != 'patient' %}display:none{% endif %}">
+            <input type="text" name="patient" class="form-input" style="width:200px" placeholder="Patient name or ID"
+                value="{{ filter_patient }}">
+        </span>
+        <button type="submit" class="btn btn-primary btn-sm">Filter</button>
+    </form>
+</div>
+
+<div class="card">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Invoice</th>
+                <th>Patient</th>
+                <th>Date</th>
+                <th>Amount</th>
+                <th>Payment</th>
+                <th>Status</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for inv in invoices %}
+            <tr id="inv-row-{{ inv.pk }}">
+                <td>{{ inv.invoice_id }}</td>
+                <td>{{ inv.patient.full_name }}</td>
+                <td>{{ inv.appointment.date|date:"Y-m-d" }}</td>
+                <td><strong>₹{{ inv.total_amount }}</strong></td>
+                <td>
+                    <div class="inline-edit-cell">
+                        <span id="pay-method-text-{{ inv.pk }}">{{ inv.payment_method|default:"—" }}</span>
+                        <div class="inline-edit-dropdown" id="pay-method-dd-{{ inv.pk }}">
+                            <button type="button" class="inline-edit-btn" onclick="toggleInlineEdit('pay-method-dd-{{ inv.pk }}')" title="Change payment method"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+                            <div class="inline-edit-options">
+                                <button class="inline-edit-option {% if inv.payment_method == 'Cash' %}active{% endif %}" onclick="updateInvoiceField({{ inv.pk }}, 'payment_method', 'Cash')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg> Cash</button>
+                                <button class="inline-edit-option {% if inv.payment_method == 'Online' %}active{% endif %}" onclick="updateInvoiceField({{ inv.pk }}, 'payment_method', 'Online')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg> Online</button>
+                            </div>
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    <div class="inline-edit-cell">
+                        <span class="badge badge-{{ inv.payment_status|lower }}" id="pay-status-badge-{{ inv.pk }}">{{ inv.payment_status }}</span>
+                        <div class="inline-edit-dropdown" id="pay-status-dd-{{ inv.pk }}">
+                            <button type="button" class="inline-edit-btn" onclick="toggleInlineEdit('pay-status-dd-{{ inv.pk }}')" title="Change status"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+                            <div class="inline-edit-options">
+                                <button class="inline-edit-option {% if inv.payment_status == 'Pending' %}active{% endif %}" onclick="updateInvoiceField({{ inv.pk }}, 'payment_status', 'Pending')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Pending</button>
+                                <button class="inline-edit-option {% if inv.payment_status == 'Paid' %}active{% endif %}" onclick="updateInvoiceField({{ inv.pk }}, 'payment_status', 'Paid')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Paid</button>
+                            </div>
+                        </div>
+                    </div>
+                </td>
+                <td style="white-space:nowrap">
+                    {% if inv.payment_status == 'Pending' %}
+                    <button class="btn btn-outline btn-sm"
+                        onclick="openCollectModal({{ inv.pk }},'{{ inv.invoice_id }}','{{ inv.patient.full_name }}','{{ inv.total_amount }}')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                        Collect</button>
+                    {% endif %}
+                    <button class="btn-icon" onclick="openInvoicePreview({{ inv.pk }})" title="Preview"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+                    <a href="/api/invoices/{{ inv.pk }}/pdf/" class="btn-icon" title="Download PDF"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="7" class="empty-state">No invoices found</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Invoice Preview Modal -->
+<div class="modal-overlay" id="invoiceModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h2>Invoice Preview</h2>
+            <button class="modal-close" onclick="closeModal('invoiceModal')"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+        </div>
+        <div class="modal-body">
+            <div class="invoice-preview" id="invoicePreviewContent"></div>
+            <a id="invoicePdfLink" href="#" class="btn btn-primary btn-block btn-lg"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download PDF</a>
+        </div>
+    </div>
+</div>
+
+<!-- Collect Payment Modal -->
+<div class="modal-overlay" id="collectModal">
+    <div class="modal" style="max-width:400px">
+        <div class="modal-header">
+            <h2>Collect Payment</h2>
+            <button class="modal-close" onclick="closeModal('collectModal')"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+        </div>
+        <div class="modal-body">
+            <div id="collectInfo" class="cost-summary" style="margin-bottom:16px"></div>
+            <label class="form-label">Payment Mode</label>
+            <div class="payment-modes">
+                <button type="button" class="payment-mode active" onclick="selectPayMode(this,'Cash')">Cash</button>
+                <button type="button" class="payment-mode" onclick="selectPayMode(this,'Online')">Online</button>
+            </div>
+            <input type="hidden" id="collectMethod" value="Cash">
+            <input type="hidden" id="collectInvId" value="">
+            <button class="btn btn-primary btn-block btn-lg" onclick="collectPayment()">Mark as Paid</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function toggleFilterInputs(val) {
+        document.getElementById('dateFilter').style.display = val === 'date' ? 'inline' : 'none';
+        document.getElementById('patientFilter').style.display = val === 'patient' ? 'inline' : 'none';
+    }
+
+    function openCollectModal(id, invId, name, amount) {
+        document.getElementById('collectInvId').value = id;
+        document.getElementById('collectInfo').innerHTML = `<strong>${invId}</strong><br>${name}<br><strong>₹${amount}</strong>`;
+        document.querySelectorAll('#collectModal .payment-mode').forEach(b => b.classList.remove('active'));
+        document.querySelector('#collectModal .payment-mode').classList.add('active');
+        document.getElementById('collectMethod').value = 'Cash';
+        openModal('collectModal');
+    }
+
+    function selectPayMode(btn, mode) {
+        document.querySelectorAll('#collectModal .payment-mode').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById('collectMethod').value = mode;
+    }
+
+    function collectPayment() {
+        const id = document.getElementById('collectInvId').value;
+        const method = document.getElementById('collectMethod').value;
+        const form = new FormData();
+        form.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+        form.append('payment_method', method);
+        fetch(`/api/invoices/${id}/collect/`, { method: 'POST', body: form })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('Payment collected', 'success');
+                    closeModal('collectModal');
+                    setTimeout(() => location.reload(), 500);
+                } else {
+                    showToast(data.error, 'error');
+                }
+            });
+    }
+
+    // ── Inline Edit for Payment Method & Status ──
+    function toggleInlineEdit(dropdownId) {
+        document.querySelectorAll('.inline-edit-dropdown.open').forEach(dd => {
+            if (dd.id !== dropdownId) dd.classList.remove('open');
+        });
+        document.getElementById(dropdownId).classList.toggle('open');
+    }
+
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('.inline-edit-dropdown')) {
+            document.querySelectorAll('.inline-edit-dropdown.open').forEach(dd => dd.classList.remove('open'));
+        }
+    });
+
+    function updateInvoiceField(invId, field, value) {
+        const form = new FormData();
+        form.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+        form.append(field, value);
+        fetch(`/api/invoices/${invId}/update/`, { method: 'POST', body: form })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(`Updated ${field === 'payment_method' ? 'payment method' : 'status'} to ${value}`, 'success');
+                    setTimeout(() => location.reload(), 400);
+                } else {
+                    showToast(data.error || 'Error', 'error');
+                }
+            });
+        document.querySelectorAll('.inline-edit-dropdown.open').forEach(dd => dd.classList.remove('open'));
+    }
+
+    function openInvoicePreview(id) {
+        fetch(`/api/invoices/${id}/`)
+            .then(r => r.json())
+            .then(data => {
+                const el = document.getElementById('invoicePreviewContent');
+                let extraRow = '';
+                if (data.extra_cost > 0) {
+                    extraRow = `<tr><td>Extra Charges</td><td class="amount">₹${data.extra_cost}</td></tr>`;
+                }
+                el.innerHTML = `
+                <div class="invoice-header">
+                    <div><div class="invoice-brand">VR HealthOS</div><div class="invoice-subtitle">Hospital Management System</div></div>
+                    <div class="invoice-info"><strong>${data.invoice_id}</strong>${data.date}</div>
+                </div>
+                <div class="bill-to">
+                    <div class="label">Bill To:</div>
+                    <div class="name">${data.patient_name}</div>
+                    <div>${data.patient_phone}</div>
+                    <div>ID: ${data.patient_id}</div>
+                </div>
+                <table class="invoice-items">
+                    <thead><tr><th>Description</th><th class="amount">Amount</th></tr></thead>
+                    <tbody>
+                        <tr><td>Consultation (${data.visit_type})</td><td class="amount">₹${data.base_cost}</td></tr>
+                        ${extraRow}
+                    </tbody>
+                </table>
+                <div class="invoice-total"><span>Total</span><span>₹${data.total_amount}</span></div>
+                <div class="invoice-status">
+                    <span class="badge badge-${data.payment_status.toLowerCase()}">${data.payment_status}</span>
+                    <span>${data.payment_status === 'Paid' ? 'Paid via ' + data.payment_method : ''}</span>
+                </div>`;
+                document.getElementById('invoicePdfLink').href = `/api/invoices/${id}/pdf/`;
+                openModal('invoiceModal');
+            });
+    }
+</script>
+{% endblock %}

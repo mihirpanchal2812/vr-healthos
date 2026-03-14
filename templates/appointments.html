@@ -1,0 +1,421 @@
+{% extends 'base.html' %}
+{% block title %}Appointments — VR HealthOS{% endblock %}
+{% block page_title %}Appointments{% endblock %}
+
+{% block content %}
+<div class="section-header">
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchView('calendar', this)">Calendar</button>
+        <button class="tab-btn" onclick="switchView('list', this)">List View</button>
+    </div>
+    <button class="btn btn-primary" onclick="openBookingModal()">+ Book Appointment</button>
+</div>
+
+<!-- Calendar View -->
+<div id="calendarView">
+    <div class="calendar-header">
+        <button class="btn btn-outline btn-sm" onclick="navMonth(-1)">
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+<polyline points="15 18 9 12 15 6"></polyline>
+</svg>
+</button>
+        <h2 id="calendarTitle"></h2>
+        <button class="btn btn-outline btn-sm" onclick="navMonth(1)">
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+<polyline points="9 18 15 12 9 6"></polyline>
+</svg>
+</button>
+    </div>
+    <div class="calendar-grid" id="calendarGrid"></div>
+</div>
+
+<!-- List View -->
+<div id="listView" style="display:none">
+    <div class="appt-list">
+        {% for appt in appointments %}
+        <div class="appt-card" id="appt-{{ appt.pk }}">
+            <div class="appt-icon">
+<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+<circle cx="12" cy="12" r="9"></circle>
+<polyline points="12 7 12 12 15 15"></polyline>
+</svg>
+</div>
+            <div class="appt-info">
+                <div class="name">{{ appt.patient.full_name }}</div>
+                <div class="meta">{{ appt.date|date:"Y-m-d" }} at {{ appt.time_slot|time:"H:i" }}<br>{{ appt.notes }}
+                </div>
+            </div>
+            <div class="appt-actions">
+                <span>{{ appt.visit_type }}</span>
+                <span class="badge badge-{{ appt.payment_status|lower }}">
+                    {% if appt.payment_status == 'Paid' %}Paid ({{ appt.payment_method }}){% else %}Pending{% endif %}
+                </span>
+                <span class="appt-cost">₹{{ appt.total_cost }}</span>
+                {% if appt.payment_status == 'Pending' %}
+                <button class="btn btn-outline btn-sm" onclick="markPaidFromList({{ appt.pk }})">Mark Paid</button>
+                {% endif %}
+
+                <button class="btn-icon" onclick="openEditModal({{ appt.pk }},'{{ appt.date|date:" Y-m-d" }}','{{
+                    appt.time_slot|time:"H:i" }}','{{ appt.visit_type }}','{{ appt.base_cost }}','{{ appt.extra_cost
+                    }}','{{ appt.notes|escapejs }}')" title="Edit"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 20h9"></path>
+                    <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path>
+                    </svg>
+                    </button>
+
+                <button class="btn-icon danger" onclick="deleteAppt({{ appt.pk }})" title="Delete"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6l-1 14H6L5 6"></path>
+                <path d="M10 11v6"></path>
+                <path d="M14 11v6"></path>
+                <path d="M9 6V4h6v2"></path>
+                </svg>
+                </button>
+            </div>
+        </div>
+        {% empty %}
+        <div class="empty-state">
+            <div class="icon">
+<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+<rect x="3" y="4" width="18" height="18" rx="2"></rect>
+<line x1="16" y1="2" x2="16" y2="6"></line>
+<line x1="8" y1="2" x2="8" y2="6"></line>
+<line x1="3" y1="10" x2="21" y2="10"></line>
+</svg>
+</div>
+            <p>No appointments</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Book Appointment Modal -->
+<div class="modal-overlay" id="bookModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h2 id="bookModalTitle">Book Appointment</h2>
+            <button class="modal-close" ...>
+<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<line x1="18" y1="6" x2="6" y2="18"></line>
+<line x1="6" y1="6" x2="18" y2="18"></line>
+</svg>
+</button>
+        </div>
+        <div class="modal-body">
+            <form id="bookForm" onsubmit="submitBooking(event)">
+                <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+                <input type="hidden" name="edit_id" id="editApptId" value="">
+                <div class="form-group">
+                    <label class="form-label">Date</label>
+                    <input type="date" name="date" id="bookDate" class="form-input" required
+                        onchange="loadBookedSlots()">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Patient</label>
+                    <div class="dropdown-search">
+                        <input type="text" id="patientSearchInput" class="form-input"
+                            placeholder="Search patient by name, phone or ID..." oninput="searchPatients(this.value)"
+                            autocomplete="off">
+                        <div class="dropdown-results" id="patientResults"></div>
+                    </div>
+                    <input type="hidden" name="patient_id" id="selectedPatientId">
+                    <div id="selectedPatientInfo" style="margin-top:6px;font-size:13px;color:var(--text-muted)"></div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Time Slot</label>
+                    <select name="time_slot" id="timeSlotSelect" class="form-select" required>
+                        <option value="">Select time</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Visit Type</label>
+                    <select name="visit_type" id="visitType" class="form-select" onchange="updateCost()">
+                        <option value="Old Case" data-cost="300">Old Case — ₹300</option>
+                        <option value="New Case" data-cost="700">New Case — ₹700</option>
+                    </select>
+                </div>
+                <input type="hidden" name="base_cost" id="baseCostInput" value="300">
+                <div class="form-group">
+                    <label class="form-label">Extra Cost Included?</label>
+                    <label class="toggle">
+                        <input type="checkbox" id="extraCostToggle" onchange="toggleExtraCost()">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <div class="form-group" id="extraCostGroup" style="display:none">
+                    <label class="form-label">Extra Cost Amount (₹)</label>
+                    <input type="number" name="extra_cost" id="extraCostInput" class="form-input" value="0" min="0"
+                        oninput="updateCost()">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Notes</label>
+                    <input type="text" name="notes" id="bookNotes" class="form-input" placeholder="Optional notes">
+                </div>
+                <div class="cost-summary">
+                    <div class="cost-row"><span>Cost Summary:</span></div>
+                    <div class="cost-row"><span>Consultation:</span><span id="costConsult">₹300</span></div>
+                    <div class="cost-row" id="costExtraRow" style="display:none"><span>Extra:</span><span
+                            id="costExtra">₹0</span></div>
+                    <div class="cost-row cost-total"><span>Total:</span><span id="costTotal">₹300</span></div>
+                </div>
+                <button type="submit" class="btn btn-primary btn-block btn-lg" style="margin-top:16px">Confirm
+                    Booking</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Mark Paid Mini Modal -->
+<div class="modal-overlay" id="markPaidModal">
+    <div class="modal" style="max-width:400px">
+        <div class="modal-header">
+            <h2>Collect Payment</h2>
+            <button class="modal-close" onclick="closeModal('markPaidModal')">✕</button>
+        </div>
+        <div class="modal-body">
+            <div id="markPaidInfo" class="cost-summary" style="margin-bottom:16px"></div>
+            <label class="form-label">Payment Mode</label>
+            <div class="payment-modes">
+                <button type="button" class="payment-mode active" onclick="selectPaymentMode(this,'Cash')">Cash</button>
+                <button type="button" class="payment-mode" onclick="selectPaymentMode(this,'Online')">Online</button>
+            </div>
+            <input type="hidden" id="markPaidMethod" value="Cash">
+            <input type="hidden" id="markPaidApptId" value="">
+            <button class="btn btn-primary btn-block btn-lg" onclick="confirmMarkPaid()">Mark as Paid</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let currentYear = new Date().getFullYear();
+    let currentMonth = new Date().getMonth();
+
+    const ALL_SLOTS = [];
+    for (let h = 9; h <= 18; h++) {
+        ALL_SLOTS.push(`${String(h).padStart(2, '0')}:00`);
+        if (h < 18) ALL_SLOTS.push(`${String(h).padStart(2, '0')}:30`);
+    }
+
+    function switchView(view, btn) {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById('calendarView').style.display = view === 'calendar' ? 'block' : 'none';
+        document.getElementById('listView').style.display = view === 'list' ? 'block' : 'none';
+    }
+
+    function renderCalendar() {
+        const names = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+        document.getElementById('calendarTitle').textContent = `${names[currentMonth]} ${currentYear}`;
+
+        fetch(`/api/appointments/calendar/?year=${currentYear}&month=${currentMonth + 1}`)
+            .then(r => r.json())
+            .then(events => {
+                const grid = document.getElementById('calendarGrid');
+                grid.innerHTML = '';
+                const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                days.forEach(d => { grid.innerHTML += `<div class="calendar-day-header">${d}</div>`; });
+
+                const firstDay = new Date(currentYear, currentMonth, 1).getDay();
+                const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+                const today = new Date();
+
+                // Previous month fill
+                const prevDays = new Date(currentYear, currentMonth, 0).getDate();
+                for (let i = firstDay - 1; i >= 0; i--) {
+                    grid.innerHTML += `<div class="calendar-day other-month"><div class="day-num">${prevDays - i}</div></div>`;
+                }
+
+                for (let d = 1; d <= daysInMonth; d++) {
+                    const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                    const isToday = today.getFullYear() === currentYear && today.getMonth() === currentMonth && today.getDate() === d;
+                    const dayEvents = events.filter(e => e.date === dateStr);
+                    let eventsHTML = dayEvents.map(e => `<div class="calendar-event">${e.time} ${e.patient_name}</div>`).join('');
+                    grid.innerHTML += `<div class="calendar-day${isToday ? ' today' : ''}"><div class="day-num">${d}</div>${eventsHTML}</div>`;
+                }
+
+                // Fill remainder
+                const totalCells = firstDay + daysInMonth;
+                const remaining = (7 - (totalCells % 7)) % 7;
+                for (let i = 1; i <= remaining; i++) {
+                    grid.innerHTML += `<div class="calendar-day other-month"><div class="day-num">${i}</div></div>`;
+                }
+            });
+    }
+
+    function navMonth(dir) {
+        currentMonth += dir;
+        if (currentMonth < 0) { currentMonth = 11; currentYear--; }
+        if (currentMonth > 11) { currentMonth = 0; currentYear++; }
+        renderCalendar();
+    }
+
+    function openBookingModal() {
+        document.getElementById('editApptId').value = '';
+        document.getElementById('bookModalTitle').textContent = 'Book Appointment';
+        document.getElementById('bookForm').reset();
+        document.getElementById('selectedPatientInfo').textContent = '';
+        document.getElementById('selectedPatientId').value = '';
+        document.getElementById('extraCostGroup').style.display = 'none';
+        document.getElementById('costExtraRow').style.display = 'none';
+        updateCost();
+        openModal('bookModal');
+    }
+
+    function openEditModal(id, date, time, visitType, baseCost, extraCost, notes) {
+        document.getElementById('editApptId').value = id;
+        document.getElementById('bookModalTitle').textContent = 'Edit Appointment';
+        document.getElementById('bookDate').value = date;
+        document.getElementById('visitType').value = visitType;
+        document.getElementById('baseCostInput').value = baseCost;
+        document.getElementById('bookNotes').value = notes;
+        if (parseFloat(extraCost) > 0) {
+            document.getElementById('extraCostToggle').checked = true;
+            document.getElementById('extraCostGroup').style.display = 'block';
+            document.getElementById('extraCostInput').value = extraCost;
+            document.getElementById('costExtraRow').style.display = 'flex';
+        }
+        updateCost();
+        loadBookedSlots(time);
+        openModal('bookModal');
+    }
+
+    function searchPatients(q) {
+        if (q.length < 1) { document.getElementById('patientResults').classList.remove('show'); return; }
+        fetch(`/api/patients/search/?q=${encodeURIComponent(q)}`)
+            .then(r => r.json())
+            .then(data => {
+                const el = document.getElementById('patientResults');
+                if (data.length === 0) { el.classList.remove('show'); return; }
+                el.innerHTML = data.map(p => `<div class="dropdown-item" onclick="selectPatient(${p.id},'${p.full_name}','${p.phone}','${p.patient_id}')"><div class="item-name">${p.full_name}</div><div class="item-meta">${p.patient_id} · ${p.phone}</div></div>`).join('');
+                el.classList.add('show');
+            });
+    }
+
+    function selectPatient(id, name, phone, pid) {
+        document.getElementById('selectedPatientId').value = id;
+        document.getElementById('patientSearchInput').value = name;
+        document.getElementById('selectedPatientInfo').textContent = `${pid} — ${phone}`;
+        document.getElementById('patientResults').classList.remove('show');
+    }
+
+    function loadBookedSlots(preselect) {
+        const date = document.getElementById('bookDate').value;
+        const editId = document.getElementById('editApptId').value;
+        const url = `/api/appointments/booked-slots/?date=${date}${editId ? '&exclude=' + editId : ''}`;
+        fetch(url).then(r => r.json()).then(booked => {
+            const sel = document.getElementById('timeSlotSelect');
+            sel.innerHTML = '<option value="">Select time</option>';
+            ALL_SLOTS.forEach(s => {
+                const disabled = booked.includes(s);
+                sel.innerHTML += `<option value="${s}" ${disabled ? 'disabled style="color:#ccc"' : ''} ${s === preselect ? 'selected' : ''}>${s}${disabled ? ' (booked)' : ''}</option>`;
+            });
+        });
+    }
+
+    function toggleExtraCost() {
+        const on = document.getElementById('extraCostToggle').checked;
+        document.getElementById('extraCostGroup').style.display = on ? 'block' : 'none';
+        document.getElementById('costExtraRow').style.display = on ? 'flex' : 'none';
+        if (!on) document.getElementById('extraCostInput').value = 0;
+        updateCost();
+    }
+
+    function updateCost() {
+        const opt = document.getElementById('visitType').selectedOptions[0];
+        const base = parseInt(opt.dataset.cost || opt.value === 'New Case' ? 700 : 300);
+        document.getElementById('baseCostInput').value = base;
+        const extra = parseInt(document.getElementById('extraCostInput').value) || 0;
+        document.getElementById('costConsult').textContent = `₹${base}`;
+        document.getElementById('costExtra').textContent = `₹${extra}`;
+        document.getElementById('costTotal').textContent = `₹${base + extra}`;
+    }
+
+    function submitBooking(e) {
+        e.preventDefault();
+        const form = new FormData(e.target);
+        const editId = form.get('edit_id');
+        const url = editId ? `/api/appointments/${editId}/update/` : '/api/appointments/create/';
+        form.delete('edit_id');
+        fetch(url, { method: 'POST', body: form })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(editId ? 'Appointment updated' : 'Appointment booked', 'success');
+                    setTimeout(() => location.reload(), 500);
+                } else {
+                    showToast(data.error || 'Error', 'error');
+                }
+            });
+    }
+
+    function deleteAppt(id) {
+        showConfirmDialog(
+            'Delete Appointment',
+            'Are you sure you want to delete this appointment? The associated invoice will also be removed. This action cannot be undone.',
+            function() {
+                const form = new FormData();
+                form.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+                fetch(`/api/appointments/${id}/delete/`, { method: 'POST', body: form })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.success) { showToast('Deleted', 'success'); setTimeout(() => location.reload(), 300); }
+                    });
+            }
+        );
+    }
+
+    function markPaidFromList(id) {
+        document.getElementById('markPaidApptId').value = id;
+        // Find the appointment's invoice
+        fetch(`/api/invoices/${id}/`)
+            .then(r => { if (!r.ok) throw new Error('Invoice not found'); return r.json(); })
+            .catch(() => {
+                document.getElementById('markPaidInfo').innerHTML = `<strong>Appointment #${id}</strong>`;
+                openModal('markPaidModal');
+                return null;
+            })
+            .then(data => {
+                if (!data) return;
+                document.getElementById('markPaidInfo').innerHTML = `<strong>${data.invoice_id}</strong><br>${data.patient_name}<br><strong>₹${data.total_amount}</strong>`;
+                openModal('markPaidModal');
+            });
+    }
+
+    function selectPaymentMode(btn, mode) {
+        document.querySelectorAll('.payment-mode').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById('markPaidMethod').value = mode;
+    }
+
+    function confirmMarkPaid() {
+        const id = document.getElementById('markPaidApptId').value;
+        const method = document.getElementById('markPaidMethod').value;
+        const form = new FormData();
+        form.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+        form.append('payment_method', method);
+        // Collect via invoice endpoint — find the invoice for this appointment
+        fetch(`/api/invoices/${id}/collect/`, { method: 'POST', body: form })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('Payment collected', 'success');
+                    closeModal('markPaidModal');
+                    setTimeout(() => location.reload(), 500);
+                } else {
+                    showToast(data.error || 'Error', 'error');
+                }
+            });
+    }
+
+    document.addEventListener('DOMContentLoaded', renderCalendar);
+
+    // Close patient dropdown on outside click
+    document.addEventListener('click', function (e) {
+        if (!e.target.closest('.dropdown-search')) {
+            document.getElementById('patientResults').classList.remove('show');
+        }
+    });
+</script>
+{% endblock %}

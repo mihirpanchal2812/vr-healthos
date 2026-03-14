@@ -1,0 +1,187 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard — VR HealthOS{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+<!-- Stats -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div>
+            <div class="stat-label">Total Patients</div>
+            <div class="stat-value">{{ total_patients }}</div>
+        </div>
+        <div class="stat-icon blue"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+    </div>
+    <div class="stat-card">
+        <div>
+            <div class="stat-label">Appointments</div>
+            <div class="stat-value">{{ total_appointments }}</div>
+        </div>
+        <div class="stat-icon green"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
+    </div>
+    <div class="stat-card">
+        <div>
+            <div class="stat-label">Invoices</div>
+            <div class="stat-value">{{ total_invoices }}</div>
+        </div>
+        <div class="stat-icon teal"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
+    </div>
+    {% if request.user.role == 'admin' %}
+    <div class="stat-card">
+        <div>
+            <div class="stat-label">Revenue</div>
+            <div class="stat-value">₹{{ total_revenue }}</div>
+        </div>
+        <div class="stat-icon emerald"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg></div>
+    </div>
+    {% endif %}
+</div>
+
+{% if request.user.role == 'admin' %}
+<!-- Download Report Button -->
+<div style="display:flex;justify-content:flex-end;margin-bottom:16px">
+    <a href="/api/finance/export-pdf/" class="btn-report"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download Financial Report (PDF)</a>
+</div>
+
+<!-- Admin Charts Row 1 -->
+<div class="charts-grid">
+    <div class="chart-card">
+        <h3>Monthly Trends</h3>
+        <div class="chart-container">
+            <canvas id="monthlyChart"></canvas>
+        </div>
+    </div>
+    <div class="chart-card">
+        <h3>Visit Types</h3>
+        <div class="chart-container">
+            <canvas id="visitChart"></canvas>
+        </div>
+    </div>
+</div>
+<!-- Admin Charts Row 2 -->
+<div class="charts-grid-half">
+    <div class="chart-card">
+        <h3>Revenue Trend</h3>
+        <div class="chart-container">
+            <canvas id="revenueChart"></canvas>
+        </div>
+    </div>
+    <div class="chart-card">
+        <h3>Today's Appointments</h3>
+        <div class="today-list">
+            {% for appt in todays_appointments %}
+            <div class="today-item">
+                <div>
+                    <div class="today-name">{{ appt.patient.full_name }}</div>
+                    <div class="today-meta">{{ appt.time_slot|time:"H:i" }} — {{ appt.visit_type }}</div>
+                </div>
+                <div class="today-cost">₹{{ appt.total_cost }}</div>
+            </div>
+            {% empty %}
+            <div class="empty-state">
+                <div class="icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
+                <p>No appointments today</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% else %}
+<!-- Receptionist: Visit Types + Today's Appointments -->
+<div class="charts-grid">
+    <div class="chart-card">
+        <h3>Visit Types</h3>
+        <div class="chart-container">
+            <canvas id="visitChart"></canvas>
+        </div>
+    </div>
+    <div class="chart-card">
+        <h3>Today's Appointments</h3>
+        <div class="today-list">
+            {% for appt in todays_appointments %}
+            <div class="today-item">
+                <div>
+                    <div class="today-name">{{ appt.patient.full_name }}</div>
+                    <div class="today-meta">{{ appt.time_slot|time:"H:i" }} — {{ appt.visit_type }}</div>
+                </div>
+                <div class="today-cost">₹{{ appt.total_cost }}</div>
+            </div>
+            {% empty %}
+            <div class="empty-state">
+                <div class="icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
+                <p>No appointments today</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        fetch('/api/dashboard/')
+            .then(r => r.json())
+            .then(data => {
+                // Visit Types Donut — dynamic from database
+                new Chart(document.getElementById('visitChart'), {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Old Case', 'New Case'],
+                        datasets: [{
+                            data: [data.visit_types.old, data.visit_types.new],
+                            backgroundColor: ['#10b981', '#3b82f6'],
+                            borderWidth: 0,
+                        }]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        cutout: '65%',
+                        plugins: {
+                            legend: { position: 'right', labels: { padding: 16, usePointStyle: true } }
+                        }
+                    }
+                });
+
+                {% if request.user.role == 'admin' %}
+                // Monthly Trends Bar — dynamic from database
+                new Chart(document.getElementById('monthlyChart'), {
+                    type: 'bar',
+                    data: {
+                        labels: data.months,
+                        datasets: [
+                            { label: 'Patients', data: data.patients, backgroundColor: '#3b82f6', borderRadius: 4 },
+                            { label: 'Revenue', data: data.revenue, backgroundColor: '#10b981', borderRadius: 4 },
+                        ]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        scales: { y: { beginAtZero: true } },
+                        plugins: { legend: { position: 'bottom' } }
+                    }
+                });
+                // Revenue Line — dynamic from database
+                new Chart(document.getElementById('revenueChart'), {
+                    type: 'line',
+                    data: {
+                        labels: data.months,
+                        datasets: [{
+                            label: 'Revenue',
+                            data: data.revenue,
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59,130,246,0.1)',
+                            fill: true, tension: 0.4, pointRadius: 4,
+                        }]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        scales: { y: { beginAtZero: true } },
+                        plugins: { legend: { display: false } }
+                    }
+                });
+                {% endif %}
+            });
+    });
+</script>
+{% endblock %}

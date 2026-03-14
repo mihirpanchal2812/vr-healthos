@@ -1,0 +1,160 @@
+{% extends 'base.html' %}
+{% block title %}Patients — VR HealthOS{% endblock %}
+{% block page_title %}Patients{% endblock %}
+
+{% block content %}
+<div class="section-header">
+    <form class="search-box" method="get">
+        <span class="search-icon">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+<circle cx="11" cy="11" r="8"></circle>
+<line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+</svg>
+</span>
+        <input type="text" name="q" placeholder="Search by name, phone or ID..." value="{{ q }}">
+    </form>
+    <button class="btn btn-primary" onclick="openModal('addPatientModal')">+ Add Patient</button>
+</div>
+
+<div class="card">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Patient ID</th>
+                <th>Name</th>
+                <th>Phone</th>
+                <th>Age/Gender</th>
+                <th>Address</th>
+                <th>Registered</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in patients %}
+            <tr>
+                <td>{{ p.patient_id }}</td>
+                <td><strong>{{ p.full_name }}</strong></td>
+                <td>{{ p.phone }}</td>
+                <td>{{ p.age }}y / {{ p.gender }}</td>
+                <td>{{ p.address }}</td>
+                <td>{{ p.created_date|date:"Y-m-d" }}</td>
+                
+                <td>
+                    <a href="{% url 'patient_profile' p.pk %}" class="btn-icon" title="View">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                    <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                    </a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="7" class="empty-state">No patients found</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Add Patient Modal -->
+<div class="modal-overlay" id="addPatientModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h2>Patient Entry</h2>
+            <button class="modal-close" onclick="closeModal('addPatientModal')">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+<line x1="18" y1="6" x2="6" y2="18"></line>
+<line x1="6" y1="6" x2="18" y2="18"></line>
+</svg>
+</button>
+        </div>
+        <div class="modal-body">
+            <!-- Step 1: Phone Check -->
+            <div id="phoneStep">
+                <div class="form-group">
+                    <label class="form-label">Phone Number</label>
+                    <div style="display:flex;gap:8px">
+                        <input type="text" id="checkPhone" class="form-input" placeholder="+91 98765 43210"
+                            style="flex:1" onkeypress="if(event.key === 'Enter') checkPhone()">
+                        <button class="btn btn-outline" onclick="checkPhone()">Check</button>
+                    </div>
+                </div>
+                <div id="phoneResult"></div>
+            </div>
+            <!-- Step 2: New Patient Form -->
+            <form id="newPatientForm" style="display:none" onsubmit="createPatient(event)">
+                <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+                <input type="hidden" name="phone" id="newPatientPhone">
+                <div class="form-group">
+                    <label class="form-label">Full Name</label>
+                    <input type="text" name="full_name" class="form-input" required>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                    <div class="form-group">
+                        <label class="form-label">Age</label>
+                        <input type="number" name="age" class="form-input" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Gender</label>
+                        <select name="gender" class="form-select" required>
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Address</label>
+                    <input type="text" name="address" class="form-input">
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Create Patient</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function checkPhone() {
+        const phone = document.getElementById('checkPhone').value.trim();
+        if (!phone) return;
+        const form = new FormData();
+        form.append('phone', phone);
+        form.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+        fetch('/api/patients/check-phone/', { method: 'POST', body: form })
+            .then(r => r.json())
+            .then(data => {
+                if (data.exists) {
+                    document.getElementById('phoneResult').innerHTML = `
+                    <div class="cost-summary" style="margin-top:12px; border-left: 4px solid #ef4444; border-radius: 4px;">
+                        <strong style="color: #ef4444;">Profile with this number already registered:</strong><br>
+                        ${data.patient.patient_id} — ${data.patient.full_name}<br>
+                        <a href="/patients/${data.patient.id}/" class="btn btn-primary btn-sm" style="margin-top:8px">View Profile</a>
+                    </div>`;
+                    document.getElementById('newPatientForm').style.display = 'none';
+                } else {
+                    document.getElementById('phoneResult').innerHTML = '<p style="color:var(--text-muted);margin:8px 0;font-size:13px">No patient found. Fill in details below:</p>';
+                    document.getElementById('newPatientPhone').value = phone;
+                    document.getElementById('newPatientForm').style.display = 'block';
+                }
+            });
+    }
+
+    function createPatient(e) {
+        e.preventDefault();
+        const form = new FormData(e.target);
+        fetch('/api/patients/create/', { method: 'POST', body: form })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('Patient created: ' + data.patient.patient_id, 'success');
+                    setTimeout(() => location.reload(), 500);
+                } else {
+                    showToast(data.error || 'Error creating patient', 'error');
+                }
+            });
+    }
+</script>
+{% endblock %}

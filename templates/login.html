@@ -1,0 +1,50 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign In — VR HealthOS</title>
+    <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+</head>
+
+<body>
+    <div class="login-page">
+        <div class="login-card">
+            <div class="login-brand">
+                <div class="logo"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>
+                <div class="text">
+                    <h2>VR HealthOS</h2>
+                    <p>Hospital Management System</p>
+                </div>
+            </div>
+            <div class="login-title">
+                <h3>Sign In</h3>
+                <p>Enter your credentials to access the system</p>
+            </div>
+            {% if error %}
+            <div class="login-error">{{ error }}</div>
+            {% endif %}
+            <form class="login-form" method="post">
+                {% csrf_token %}
+                <div class="form-group">
+                    <label class="form-label">Email</label>
+                    <input type="text" name="email" class="form-input" placeholder="admin@hospital.com" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Password</label>
+                    <input type="password" name="password" class="form-input" placeholder="Enter password" required>
+                </div>
+                <button type="submit" class="btn btn-primary btn-block btn-lg">Sign In</button>
+            </form>
+            <div class="demo-creds">
+                <strong>Demo Credentials:</strong><br>
+                Admin: admin@hospital.com / admin123<br>
+                Staff: reception@hospital.com / staff123
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

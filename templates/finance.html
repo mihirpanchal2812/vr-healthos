@@ -1,0 +1,317 @@
+{% extends 'base.html' %}
+{% block title %}Finance — VR HealthOS{% endblock %}
+{% block page_title %}Finance{% endblock %}
+
+{% block content %}
+<!-- Toolbar: Filters + Export Buttons -->
+<div class="finance-toolbar">
+    <div class="finance-filters">
+        <div class="filter-group">
+            <label class="filter-label">Period</label>
+            <select id="periodSelect" class="form-select" onchange="updateFilters()">
+                <option value="monthly" {% if selected_period == 'monthly' %}selected{% endif %}>Monthly</option>
+                <option value="quarterly" {% if selected_period == 'quarterly' %}selected{% endif %}>Quarterly</option>
+                <option value="yearly" {% if selected_period == 'yearly' %}selected{% endif %}>Yearly</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label class="filter-label">Year</label>
+            <select id="yearSelect" class="form-select" onchange="updateFilters()">
+                {% for y in year_choices %}
+                <option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>{{ y }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+    <div class="finance-export-btns">
+        <a id="exportPdfBtn" href="/api/finance/export-pdf/?year={{ selected_year }}" class="btn-export btn-export-pdf">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            Export PDF
+        </a>
+        <a id="exportExcelBtn" href="/api/finance/export-excel/?year={{ selected_year }}" class="btn-export btn-export-excel">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+            Export Excel
+        </a>
+    </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="finance-summary-grid">
+
+    <div class="finance-card finance-card-revenue">
+        <div class="finance-card-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="6" width="20" height="12" rx="2"></rect>
+                <circle cx="12" cy="12" r="3"></circle>
+            </svg>
+        </div>
+        <div class="finance-card-body">
+            <div class="finance-card-label">Total Revenue</div>
+            <div class="finance-card-value">₹{{ total_revenue }}</div>
+        </div>
+    </div>
+
+    <div class="finance-card finance-card-collected">
+        <div class="finance-card-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 6L9 17l-5-5"></path>
+            </svg>
+        </div>
+        <div class="finance-card-body">
+            <div class="finance-card-label">Collected</div>
+            <div class="finance-card-value">₹{{ collected }}</div>
+        </div>
+    </div>
+
+    <div class="finance-card finance-card-outstanding">
+        <div class="finance-card-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M6 2h12"></path>
+                <path d="M6 22h12"></path>
+                <path d="M8 2v6a4 4 0 0 0 8 0V2"></path>
+                <path d="M8 22v-6a4 4 0 0 1 8 0v6"></path>
+            </svg>
+        </div>
+        <div class="finance-card-body">
+            <div class="finance-card-label">Outstanding</div>
+            <div class="finance-card-value">₹{{ outstanding }}</div>
+        </div>
+    </div>
+
+    <div class="finance-card finance-card-appointments">
+        <div class="finance-card-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="4" width="18" height="18" rx="2"></rect>
+                <line x1="16" y1="2" x2="16" y2="6"></line>
+                <line x1="8" y1="2" x2="8" y2="6"></line>
+                <line x1="3" y1="10" x2="21" y2="10"></line>
+            </svg>
+        </div>
+        <div class="finance-card-body">
+            <div class="finance-card-label">Appointments</div>
+            <div class="finance-card-value">{{ total_appointments }}</div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Revenue Trend Chart -->
+<div class="finance-chart-section">
+    <div class="finance-chart-card finance-chart-full">
+        <div class="finance-chart-header">
+            <h3>Revenue Trend — {{ selected_year }}</h3>
+            <div class="finance-chart-legend">
+                <span class="legend-dot" style="background:#10b981"></span> Collected
+                <span class="legend-dot" style="background:#f59e0b;margin-left:12px"></span> Pending
+            </div>
+        </div>
+        <div class="finance-chart-body">
+            <canvas id="revenueTrendChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Row 2: Payment Mode Split + Cash vs Online -->
+<div class="finance-chart-row">
+    <div class="finance-chart-card">
+        <div class="finance-chart-header">
+            <h3>Payment Mode Split</h3>
+        </div>
+        <div class="finance-chart-body" style="display:flex;align-items:center;justify-content:center">
+            <canvas id="paymentModePieChart" style="max-height:280px"></canvas>
+        </div>
+    </div>
+    <div class="finance-chart-card">
+        <div class="finance-chart-header">
+            <h3>Cash vs Online Payments by Month</h3>
+            <div class="finance-chart-legend">
+                <span class="legend-dot" style="background:#10b981"></span> Cash
+                <span class="legend-dot" style="background:#3b82f6;margin-left:12px"></span> Online
+            </div>
+        </div>
+        <div class="finance-chart-body">
+            <canvas id="cashOnlineChart"></canvas>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const SELECTED_YEAR = {{ selected_year }};
+    let revenueTrendChart, paymentModePieChart, cashOnlineChart;
+
+    function updateFilters() {
+        const year = document.getElementById('yearSelect').value;
+        const period = document.getElementById('periodSelect').value;
+        // Update export links
+        document.getElementById('exportPdfBtn').href = `/api/finance/export-pdf/?year=${year}`;
+        document.getElementById('exportExcelBtn').href = `/api/finance/export-excel/?year=${year}`;
+        // Reload page with new filters
+        window.location.href = `/finance/?year=${year}&period=${period}`;
+    }
+
+    function fetchAndRenderCharts() {
+        fetch(`/api/finance/data/?year=${SELECTED_YEAR}`)
+            .then(r => r.json())
+            .then(data => {
+                renderRevenueTrend(data);
+                renderPaymentModePie(data);
+                renderCashOnlineChart(data);
+            });
+    }
+
+    function renderRevenueTrend(data) {
+        const ctx = document.getElementById('revenueTrendChart').getContext('2d');
+        if (revenueTrendChart) revenueTrendChart.destroy();
+        revenueTrendChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: data.months,
+                datasets: [
+                    {
+                        label: 'Collected',
+                        data: data.collected,
+                        borderColor: '#10b981',
+                        backgroundColor: 'rgba(16,185,129,0.1)',
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 5,
+                        pointBackgroundColor: '#10b981',
+                        borderWidth: 2.5,
+                    },
+                    {
+                        label: 'Pending',
+                        data: data.pending,
+                        borderColor: '#f59e0b',
+                        backgroundColor: 'rgba(245,158,11,0.08)',
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 5,
+                        pointBackgroundColor: '#f59e0b',
+                        borderWidth: 2.5,
+                        borderDash: [6, 3],
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: 'rgba(0,0,0,0.04)' },
+                        ticks: { callback: v => '₹' + v.toLocaleString() }
+                    },
+                    x: { grid: { display: false } }
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: '#1e293b',
+                        titleColor: '#f8fafc',
+                        bodyColor: '#cbd5e1',
+                        padding: 12,
+                        borderColor: '#334155',
+                        borderWidth: 1,
+                        callbacks: { label: ctx => `${ctx.dataset.label}: ₹${ctx.raw.toLocaleString()}` }
+                    }
+                }
+            }
+        });
+    }
+
+    function renderPaymentModePie(data) {
+        const ctx = document.getElementById('paymentModePieChart').getContext('2d');
+        if (paymentModePieChart) paymentModePieChart.destroy();
+        const ms = data.mode_split;
+        paymentModePieChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Cash', 'Online', 'Pending'],
+                datasets: [{
+                    data: [ms.cash, ms.online, ms.pending],
+                    backgroundColor: ['#10b981', '#3b82f6', '#f59e0b'],
+                    borderWidth: 0,
+                    hoverOffset: 8,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                cutout: '62%',
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            padding: 16,
+                            usePointStyle: true,
+                            pointStyleWidth: 10,
+                            font: { size: 12 }
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: '#1e293b',
+                        callbacks: {
+                            label: ctx => `${ctx.label}: ₹${ctx.raw.toLocaleString()}`
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function renderCashOnlineChart(data) {
+        const ctx = document.getElementById('cashOnlineChart').getContext('2d');
+        if (cashOnlineChart) cashOnlineChart.destroy();
+        cashOnlineChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: data.months,
+                datasets: [
+                    {
+                        label: 'Cash',
+                        data: data.cash,
+                        backgroundColor: '#10b981',
+                        borderRadius: 4,
+                        borderSkipped: false,
+                    },
+                    {
+                        label: 'Online',
+                        data: data.online,
+                        backgroundColor: '#3b82f6',
+                        borderRadius: 4,
+                        borderSkipped: false,
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: 'rgba(0,0,0,0.04)' },
+                        ticks: { callback: v => '₹' + v.toLocaleString() }
+                    },
+                    x: { grid: { display: false } }
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: '#1e293b',
+                        callbacks: { label: ctx => `${ctx.dataset.label}: ₹${ctx.raw.toLocaleString()}` }
+                    }
+                }
+            }
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', fetchAndRenderCharts);
+</script>
+{% endblock %}

@@ -1,0 +1,141 @@
+{% extends 'base.html' %}
+{% block title %}Reminders — VR HealthOS{% endblock %}
+{% block page_title %}Reminders{% endblock %}
+
+{% block content %}
+<div class="reminder-layout">
+    <div class="card">
+        <h3 style="margin-bottom:16px;font-size:15px;font-weight:600">Send Reminder</h3>
+        <div class="form-group">
+            <label class="form-label">Patient</label>
+            <div class="dropdown-search">
+                <input type="text" id="reminderPatientSearch" class="form-input" placeholder="Search patient..."
+                    oninput="searchReminderPatient(this.value)" autocomplete="off">
+                <div class="dropdown-results" id="reminderPatientResults"></div>
+            </div>
+            <select id="reminderPatientSelect" class="form-select" style="margin-top:8px">
+                <option value="">Select patient</option>
+                {% for p in patients %}
+                <option value="{{ p.pk }}" data-name="{{ p.full_name }}" data-phone="{{ p.phone }}">{{ p.full_name }} —
+                    {{ p.phone }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Template</label>
+            <select id="reminderTemplate" class="form-select" onchange="fillTemplate()">
+                <option value="followup">Follow-up Reminder</option>
+                <option value="appointment">Appointment Reminder</option>
+                <option value="report">Report Ready</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Message</label>
+            <textarea id="reminderMessage" class="form-textarea" rows="4"></textarea>
+        </div>
+        <div style="display:flex;gap:8px">
+            <button class="btn btn-primary" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px" onclick="sendReminder('SMS')">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="5" y="2" width="14" height="20" rx="2"/>
+            <line x1="12" y1="18" x2="12.01" y2="18"/>
+            </svg>
+            SMS
+            </button>
+            <button class="btn btn-outline" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px" onclick="sendReminder('WhatsApp')">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 11.5a8.38 8.38 0 0 1-1.9 5.4L21 21l-4.1-1.5a8.5 8.5 0 1 1 4.1-8z"/>
+            </svg>
+            WhatsApp
+            </button>
+        </div>
+    </div>
+    <div class="card">
+        <h3 style="margin-bottom:16px;font-size:15px;font-weight:600">Recent Messages</h3>
+        <div class="message-list" id="messageList">
+            <div class="empty-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"/>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+            </svg>
+            </div>
+            <p>No messages sent yet</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const templates = {
+        followup: "Dear {name}, it's time for your follow-up visit. Please schedule an appointment at your earliest convenience. — VR HealthOS",
+        appointment: "Dear {name}, this is a reminder for your upcoming appointment. Please arrive 10 minutes early. — VR HealthOS",
+        report: "Dear {name}, your reports are ready for collection. Please visit the clinic. — VR HealthOS",
+    };
+
+    function fillTemplate() {
+        const sel = document.getElementById('reminderPatientSelect');
+        const opt = sel.selectedOptions[0];
+        const name = opt && opt.dataset.name ? opt.dataset.name : '{Patient}';
+        const tpl = document.getElementById('reminderTemplate').value;
+        document.getElementById('reminderMessage').value = templates[tpl].replace('{name}', name);
+    }
+
+    function searchReminderPatient(q) {
+        if (q.length < 1) { document.getElementById('reminderPatientResults').classList.remove('show'); return; }
+        fetch(`/api/patients/search/?q=${encodeURIComponent(q)}`)
+            .then(r => r.json())
+            .then(data => {
+                const el = document.getElementById('reminderPatientResults');
+                if (!data.length) { el.classList.remove('show'); return; }
+                el.innerHTML = data.map(p =>
+                    `<div class="dropdown-item" onclick="selectReminderPatient(${p.id},'${p.full_name}','${p.phone}')">
+                    <div class="item-name">${p.full_name}</div>
+                    <div class="item-meta">${p.phone}</div>
+                </div>`
+                ).join('');
+                el.classList.add('show');
+            });
+    }
+
+    function selectReminderPatient(id, name, phone) {
+        document.getElementById('reminderPatientSearch').value = name;
+        document.getElementById('reminderPatientResults').classList.remove('show');
+        // Also update the select
+        const sel = document.getElementById('reminderPatientSelect');
+        for (let opt of sel.options) {
+            if (opt.value == id) { opt.selected = true; break; }
+        }
+        fillTemplate();
+    }
+
+    document.getElementById('reminderPatientSelect').addEventListener('change', fillTemplate);
+    document.addEventListener('click', e => {
+        if (!e.target.closest('.dropdown-search')) document.getElementById('reminderPatientResults').classList.remove('show');
+    });
+
+    function sendReminder(channel) {
+        const msg = document.getElementById('reminderMessage').value;
+        if (!msg) { showToast('Enter a message', 'error'); return; }
+        const sel = document.getElementById('reminderPatientSelect');
+        const name = sel.selectedOptions[0]?.dataset?.name || 'Patient';
+        const phone = sel.selectedOptions[0]?.dataset?.phone || '';
+
+        // Add to recent messages list (simulated)
+        const list = document.getElementById('messageList');
+        if (list.querySelector('.empty-icon')) list.innerHTML = '';
+        const time = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+        list.innerHTML = `<div style="padding:12px 0;border-bottom:1px solid var(--border);font-size:13px">
+        <div style="display:flex;justify-content:space-between">
+            <strong>${name}</strong>
+            <span class="badge badge-active">${channel}</span>
+        </div>
+        <div style="color:var(--text-muted);margin-top:4px">${msg.substring(0, 80)}...</div>
+        <div style="color:var(--text-muted);font-size:11px;margin-top:4px">${time}</div>
+    </div>` + list.innerHTML;
+
+        showToast(`${channel} reminder sent to ${name}`, 'success');
+    }
+
+    fillTemplate();
+</script>
+{% endblock %}
